@@ -1,26 +1,34 @@
-# Базовый образ Python (легковесный)
+# Используем python:3.10-slim — это золотая середина (Debian-based, но маленький)
 FROM python:3.10-slim
 
-# Рабочая директория внутри контейнера
+# 1. Переменные окружения для оптимизации Python в контейнере
+# PYTHONDONTWRITEBYTECODE=1: не создавать .pyc файлы (экономит место)
+# PYTHONUNBUFFERED=1: логи сразу летят в консоль (удобно для отладки)
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1
+
 WORKDIR /app
 
-# Установка системных зависимостей (libgomp1 нужен для CatBoost/LightGBM)
-RUN apt-get update && apt-get install -y --no-install-recommends libgomp1 && rm -rf /var/lib/apt/lists/*
+# 2. Установка системных библиотек
+# Объединяем команды в один RUN, чтобы не плодить слои образа
+# libgomp1 нужен для CatBoost
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends libgomp1 && \
+    rm -rf /var/lib/apt/lists/*
 
-# Копируем файл зависимостей
+# 3. Установка зависимостей (КЭШИРУЕМЫЙ СЛОЙ)
+# Мы копируем ТОЛЬКО requirements.txt перед всем кодом.
+# Если ты поменяешь код в app.py, но не тронешь requirements,
+# Docker НЕ БУДЕТ переустанавливать библиотеки. Сборка займет 1 секунду.
 COPY requirements.txt .
 
-# Устанавливаем Python библиотеки
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir --upgrade pip && \
+    pip install --no-cache-dir -r requirements.txt
 
-# Копируем код приложения и файлы модели
-# Важно: model.cbm и features.json должны лежать рядом с Dockerfile при сборке
-COPY app.py .
-COPY model.cbm .
-COPY features.json .
+# 4. Копируем код приложения и файлы модели
+# .dockerignore (см. ниже) поможет не копировать мусор
+COPY . .
 
-# Открываем порт 8000
 EXPOSE 8000
 
-# Команда запуска сервера
 CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "8000"]
