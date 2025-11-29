@@ -1,0 +1,13 @@
+venv/
+env/
+.venv/
+__pycache__/
+*.py[cod]
+*$py.class
+.env
+.env.local
+.ipynb_checkpoints/
+.vscode/
+.idea/
+*.log
+*.sqlite3
